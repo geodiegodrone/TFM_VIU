@@ -7,3 +7,4 @@ reports/*.json
 .ipynb_checkpoints/
 .venv/
 venv/
+*.egg-info/
