@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
+import mlflow
 import numpy as np
 import pandas as pd
 from scipy.stats import ks_2samp
@@ -70,22 +72,40 @@ def evaluate_susceptibility(
         "hist_gradient_boosting": HistGradientBoostingClassifier(random_state=random_state),
     }
     metrics: dict[str, object] = {"ks_statistic": ks_inventory_statistic(df)}
+    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "mlruns"))
+    mlflow.set_experiment(os.getenv("MLFLOW_EXPERIMENT_NAME", "tfm-viu-susceptibility"))
     direct_scores = (x_test["susceptibilidad"] - x_train["susceptibilidad"].min()) / (
         x_train["susceptibilidad"].max() - x_train["susceptibilidad"].min()
     )
     for name, model in models.items():
-        if model is None:
-            score = direct_scores.clip(0, 1).to_numpy()
-        else:
-            model.fit(x_train, y_train)
-            score = model.predict_proba(x_test)[:, 1]
-        pred = (score >= threshold).astype(int)
-        metrics[name] = {
-            "roc_auc": float(roc_auc_score(y_test, score)),
-            "average_precision": float(average_precision_score(y_test, score)),
-            "f1": float(f1_score(y_test, pred)),
-            "confusion_matrix": confusion_matrix(y_test, pred).tolist(),
-        }
+        with mlflow.start_run(run_name=name):
+            mlflow.log_params(
+                {
+                    "model": name,
+                    "threshold": threshold,
+                    "random_state": random_state,
+                    "test_size": 0.25,
+                    "n_samples": len(df),
+                    "n_features": x.shape[1],
+                }
+            )
+            if model is None:
+                score = direct_scores.clip(0, 1).to_numpy()
+                mlflow.set_tag("run_type", "score_baseline")
+            else:
+                model.fit(x_train, y_train)
+                score = model.predict_proba(x_test)[:, 1]
+                mlflow.sklearn.log_model(model, artifact_path="model")
+            pred = (score >= threshold).astype(int)
+            model_metrics = {
+                "roc_auc": float(roc_auc_score(y_test, score)),
+                "average_precision": float(average_precision_score(y_test, score)),
+                "f1": float(f1_score(y_test, pred)),
+                "confusion_matrix": confusion_matrix(y_test, pred).tolist(),
+            }
+            mlflow.log_metrics({key: value for key, value in model_metrics.items() if key != "confusion_matrix"})
+            mlflow.log_dict({"confusion_matrix": model_metrics["confusion_matrix"]}, "metrics.json")
+            metrics[name] = model_metrics
     return metrics
 
 
