@@ -5,6 +5,7 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](requirements.txt)
 [![Data](https://img.shields.io/badge/data-parquet-green)](data.parquet)
 [![CI](https://img.shields.io/badge/CI-tests%20%2B%20reproducibility-brightgreen)](.github/workflows/ci.yml)
+[![MLflow](https://img.shields.io/badge/experiments-MLflow-blue)](docs/REPRODUCIBILITY.md)
 
 This repository contains the research notebooks and reproducible baseline code for a Master's thesis workflow focused on evaluating susceptibility values against an inventory target. The dataset contains 19,676 observations with:
 
@@ -48,6 +49,11 @@ The baseline script evaluates:
 - F1 score,
 - Kolmogorov-Smirnov statistic,
 - confusion matrix at a configurable threshold.
+
+Each baseline is logged as an MLflow run with its split configuration, ROC AUC,
+average precision, F1, confusion matrix, and (for fitted estimators) a serialized
+scikit-learn model. The default tracking store is local `mlruns/`; set
+`MLFLOW_TRACKING_URI` to use a remote tracking server.
 
 ## Scientific Standards Added
 
